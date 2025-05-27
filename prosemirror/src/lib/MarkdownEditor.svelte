@@ -8,10 +8,16 @@
         defaultMarkdownSerializer,
     } from "prosemirror-markdown";
     import { exampleSetup } from "prosemirror-example-setup";
+    import { keymap } from "prosemirror-keymap";
+    import { baseKeymap } from "prosemirror-commands";
+    import { history } from "prosemirror-history";
+    import { dropCursor } from "prosemirror-dropcursor";
+    import { gapCursor } from "prosemirror-gapcursor";
 
     // Props
     export let initialContent: string =
         "# Hello World\n\nThis is some **bold** text and *italic* text.\n\n- List item 1\n- List item 2\n- List item 3\n\n> This is a blockquote";
+    export let showMenuBar: boolean = true;
 
     // Component state
     let editorContainer: HTMLDivElement;
@@ -68,10 +74,123 @@
             // Clear target completely
             this.container.innerHTML = "";
 
+            // Choose plugins based on showMenuBar prop
+            const plugins = showMenuBar
+                ? exampleSetup({ schema })
+                : [
+                      history(),
+                      keymap(baseKeymap),
+                      keymap({
+                          "Mod-b": (state, dispatch) => {
+                              const { from, to } = state.selection;
+                              const strongType = schema.marks.strong;
+                              if (dispatch) {
+                                  const hasMark = state.doc.rangeHasMark(
+                                      from,
+                                      to,
+                                      strongType,
+                                  );
+                                  if (hasMark) {
+                                      dispatch(
+                                          state.tr.removeMark(
+                                              from,
+                                              to,
+                                              strongType,
+                                          ),
+                                      );
+                                  } else {
+                                      dispatch(
+                                          state.tr.addMark(
+                                              from,
+                                              to,
+                                              strongType.create(),
+                                          ),
+                                      );
+                                  }
+                              }
+                              return true;
+                          },
+                          "Mod-i": (state, dispatch) => {
+                              const { from, to } = state.selection;
+                              const emType = schema.marks.em;
+                              if (dispatch) {
+                                  const hasMark = state.doc.rangeHasMark(
+                                      from,
+                                      to,
+                                      emType,
+                                  );
+                                  if (hasMark) {
+                                      dispatch(
+                                          state.tr.removeMark(from, to, emType),
+                                      );
+                                  } else {
+                                      dispatch(
+                                          state.tr.addMark(
+                                              from,
+                                              to,
+                                              emType.create(),
+                                          ),
+                                      );
+                                  }
+                              }
+                              return true;
+                          },
+                          "Mod-`": (state, dispatch) => {
+                              const { from, to } = state.selection;
+                              const codeType = schema.marks.code;
+                              if (dispatch) {
+                                  const hasMark = state.doc.rangeHasMark(
+                                      from,
+                                      to,
+                                      codeType,
+                                  );
+                                  if (hasMark) {
+                                      dispatch(
+                                          state.tr.removeMark(
+                                              from,
+                                              to,
+                                              codeType,
+                                          ),
+                                      );
+                                  } else {
+                                      dispatch(
+                                          state.tr.addMark(
+                                              from,
+                                              to,
+                                              codeType.create(),
+                                          ),
+                                      );
+                                  }
+                              }
+                              return true;
+                          },
+                          "Mod-z": (state, dispatch) => {
+                              return require("prosemirror-history").undo(
+                                  state,
+                                  dispatch,
+                              );
+                          },
+                          "Mod-y": (state, dispatch) => {
+                              return require("prosemirror-history").redo(
+                                  state,
+                                  dispatch,
+                              );
+                          },
+                          "Mod-Shift-z": (state, dispatch) => {
+                              return require("prosemirror-history").redo(
+                                  state,
+                                  dispatch,
+                              );
+                          },
+                      }),
+                      dropCursor(),
+                      gapCursor(),
+                  ];
+
             this.view = new EditorView(this.container, {
                 state: EditorState.create({
                     doc: defaultMarkdownParser.parse(content),
-                    plugins: exampleSetup({ schema }),
+                    plugins: plugins,
                 }),
             });
         }
@@ -193,6 +312,20 @@
             />
             Markdown Source
         </label>
+        {#if viewMode === "prosemirror"}
+            <label class="checkbox-label">
+                <input
+                    type="checkbox"
+                    bind:checked={showMenuBar}
+                    on:change={() => {
+                        if (viewMode === "prosemirror") {
+                            switchView("prosemirror");
+                        }
+                    }}
+                />
+                Show Menu Bar
+            </label>
+        {/if}
     </div>
 
     <div class="editor-container" bind:this={editorContainer}></div>
@@ -203,6 +336,13 @@
                 ? "Rich Editor"
                 : "Markdown Source"}</strong
         >
+        {#if viewMode === "prosemirror" && !showMenuBar}
+            <div class="shortcuts-info">
+                <strong>Keyboard Shortcuts:</strong>
+                Ctrl/Cmd+B (Bold) • Ctrl/Cmd+I (Italic) • Ctrl/Cmd+` (Code) • Ctrl/Cmd+Z
+                (Undo) • Ctrl/Cmd+Y (Redo)
+            </div>
+        {/if}
     </div>
 </div>
 
@@ -210,8 +350,8 @@
     .editor-wrapper {
         max-width: 800px;
         margin: 0 auto;
-        font-family:
-            -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+            sans-serif;
     }
 
     .mode-selector {
@@ -254,6 +394,13 @@
         border-radius: 4px;
         font-size: 13px;
         color: #1565c0;
+    }
+
+    .shortcuts-info {
+        margin-top: 6px;
+        font-size: 12px;
+        color: #1976d2;
+        line-height: 1.4;
     }
 
     /* Markdown Textarea Styling */
